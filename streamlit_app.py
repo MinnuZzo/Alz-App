@@ -38,6 +38,16 @@ except Exception as e:
 G = nx.DiGraph()
 
 # --- Build Graph ---
+for entry in pathway.entries.values():
+    if entry.type in ["gene", "enzyme", "compound"]:
+        label = getattr(entry.graphics, "name", entry.name)
+        G.add_node(entry.id, name=entry.name, label=label, type=entry.type)
+
+for rel in pathway.relations:
+    e1, e2 = rel.entry1, rel.entry2
+    if e1 and e2:
+        G.add_edge(e1.id, e2.id, type=rel.type)
+
 
 # --- Improved Node Filtering ---
 def matches_biomarker(label, name, biomarkers):
