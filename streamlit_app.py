@@ -38,20 +38,6 @@ except Exception as e:
 G = nx.DiGraph()
 
 # --- Build Graph ---
-# --- Improved Node Filtering ---
-sub_nodes = [
-    n for n, d in G.nodes(data=True)
-    if any(bio.lower() in d.get("search_text", "") for bio in selected_biomarkers)
-]
-
-if not sub_nodes:
-    st.warning("⚠️ No exact biomarker matches found in KGML — showing full pathway instead.")
-    subgraph = G
-else:
-    subgraph = G.subgraph(sub_nodes).copy()
-    st.success(f"✅ Found {len(sub_nodes)} nodes related to selected biomarkers.")
-
-
 
 # --- Improved Node Filtering ---
 def matches_biomarker(label, name, biomarkers):
