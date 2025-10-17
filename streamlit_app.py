@@ -38,15 +38,19 @@ except Exception as e:
 G = nx.DiGraph()
 
 # --- Build Graph ---
-for entry in pathway.entries.values():
-    if entry.type in ["gene", "enzyme", "compound"]:
-        label = getattr(entry.graphics, "name", entry.name)
-        G.add_node(entry.id, name=entry.name, label=label, type=entry.type)
+# --- Improved Node Filtering ---
+sub_nodes = [
+    n for n, d in G.nodes(data=True)
+    if any(bio.lower() in d.get("search_text", "") for bio in selected_biomarkers)
+]
 
-for rel in pathway.relations:
-    e1, e2 = rel.entry1, rel.entry2
-    if e1 and e2:
-        G.add_edge(e1.id, e2.id, type=rel.type)
+if not sub_nodes:
+    st.warning("⚠️ No exact biomarker matches found in KGML — showing full pathway instead.")
+    subgraph = G
+else:
+    subgraph = G.subgraph(sub_nodes).copy()
+    st.success(f"✅ Found {len(sub_nodes)} nodes related to selected biomarkers.")
+
 
 
 # --- Improved Node Filtering ---
