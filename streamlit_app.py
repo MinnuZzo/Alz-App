@@ -62,16 +62,20 @@ else:
 net = Network(height="650px", width="100%", bgcolor="#111", font_color="white", notebook=False, directed=True)
 net.from_nx(subgraph)
 
-# Improve node visuals
-for n, d in subgraph.nodes(data=True):
-    net.nodes[n]['title'] = f"<b>{d.get('label')}</b><br>Type: {d.get('type')}"
-    net.nodes[n]['label'] = d.get('label', 'Unknown')
-    if d.get('type') == "gene":
-        net.nodes[n]['color'] = "#4CAF50"
-    elif d.get('type') == "compound":
-        net.nodes[n]['color'] = "#2196F3"
+# ✅ PyVis 2024+ fix: safely edit node properties
+for node in net.nodes:
+    node_id = node["id"]
+    data = subgraph.nodes[node_id]
+    node["title"] = f"<b>{data.get('label', 'Unknown')}</b><br>Type: {data.get('type', 'N/A')}"
+    node["label"] = data.get("label", "Unknown")
+
+    # Color by node type
+    if data.get("type") == "gene":
+        node["color"] = "#4CAF50"
+    elif data.get("type") == "compound":
+        node["color"] = "#2196F3"
     else:
-        net.nodes[n]['color'] = "#FFC107"
+        node["color"] = "#FFC107"
 
 html_path = "pathway_network.html"
 net.save_graph(html_path)
