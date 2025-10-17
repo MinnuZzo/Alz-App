@@ -5,7 +5,7 @@ import networkx as nx
 from pyvis.network import Network
 import os
 
-# --- Title and Intro ---
+# --- Streamlit Page Config ---
 st.set_page_config(page_title="Alzheimer’s Pathway Explorer", layout="wide")
 st.title("🧠 Alzheimer’s Disease Pathway Explorer")
 st.markdown("Explore KEGG biomarker interactions and pathways related to Alzheimer's disease.")
@@ -20,7 +20,7 @@ selected_biomarkers = st.multiselect(
     default=biomarkers
 )
 
-# --- Load KEGG Pathway Data ---
+# --- Load or Fetch KEGG Pathway Data ---
 xml_path = "hsa05010.xml"
 
 if not os.path.exists(xml_path):
@@ -48,53 +48,79 @@ for rel in pathway.relations:
     if e1 and e2:
         G.add_edge(e1.id, e2.id, type=rel.type)
 
-# --- Fix node filtering (match biomarker names inside labels) ---
-sub_nodes = [n for n, d in G.nodes(data=True)
-             if any(bio.lower() in d.get("label", "").lower() for bio in selected_biomarkers)]
+
+# --- Improved Node Filtering ---
+def matches_biomarker(label, name, biomarkers):
+    text = f"{label} {name}".lower()
+    return any(bio.lower() in text for bio in biomarkers)
+
+sub_nodes = [
+    n for n, d in G.nodes(data=True)
+    if matches_biomarker(d.get("label", ""), d.get("name", ""), selected_biomarkers)
+]
 
 if not sub_nodes:
-    st.warning("⚠️ No matching biomarkers found in the KEGG pathway. Showing full pathway instead.")
+    st.warning("⚠️ No exact biomarker matches found — showing full pathway instead.")
     subgraph = G
 else:
     subgraph = G.subgraph(sub_nodes).copy()
+    st.success(f"✅ Found {len(sub_nodes)} nodes related to selected biomarkers.")
 
-# --- Visualization ---
-net = Network(height="650px", width="100%", bgcolor="#111", font_color="white", notebook=False, directed=True)
+
+# --- Build PyVis Network ---
+net = Network(
+    height="700px", width="100%",
+    bgcolor="#111", font_color="white", notebook=False, directed=True
+)
 net.from_nx(subgraph)
 
-# ✅ PyVis 2024+ fix: safely edit node properties
+# Color + tooltip customization
 for node in net.nodes:
     node_id = node["id"]
     data = subgraph.nodes[node_id]
     node["title"] = f"<b>{data.get('label', 'Unknown')}</b><br>Type: {data.get('type', 'N/A')}"
     node["label"] = data.get("label", "Unknown")
 
-    # Color by node type
-    if data.get("type") == "gene":
+    # Highlight selected biomarkers in red
+    if any(bio.lower() in data.get("label", "").lower() for bio in selected_biomarkers):
+        node["color"] = "#FF5252"  # red highlight
+        node["size"] = 25
+    elif data.get("type") == "gene":
         node["color"] = "#4CAF50"
+        node["size"] = 18
     elif data.get("type") == "compound":
         node["color"] = "#2196F3"
+        node["size"] = 15
     else:
         node["color"] = "#FFC107"
+        node["size"] = 12
 
+# --- Save and Display Network ---
 html_path = "pathway_network.html"
 net.save_graph(html_path)
 
-# --- Display in Streamlit ---
 with open(html_path, "r", encoding="utf-8") as f:
     html = f.read()
 
-st.components.v1.html(html, height=700, scrolling=True)
+st.components.v1.html(html, height=750, scrolling=True)
 
-# --- Optional Biomarker Info Section ---
-st.subheader("ℹ️ Biomarker Information")
+
+# --- Biomarker Information Section ---
+st.markdown("---")
+st.subheader("🧬 Biomarker Information")
+
 for bio in selected_biomarkers:
-    try:
-        data = REST.kegg_get(f"hsa:{bio}").read()
-        if "DEFINITION" in data:
-            desc = data.split("DEFINITION")[1].split("PATHWAY")[0].strip()
-            st.markdown(f"**{bio}** — {desc}")
-        else:
-            st.markdown(f"**{bio}** — description unavailable.")
-    except Exception as e:
-        st.markdown(f"**{bio}** — info not available ({e})")
+    with st.expander(f"**{bio}** — click to view KEGG details"):
+        try:
+            data = REST.kegg_get(f"hsa:{bio}").read()
+            if "DEFINITION" in data:
+                desc = data.split("DEFINITION")[1].split("PATHWAY")[0].strip()
+                st.markdown(f"**Description:** {desc}")
+
+            # Optional: show KEGG link
+            st.markdown(f"[🔗 Open in KEGG](https://www.kegg.jp/dbget-bin/www_bget?hsa:{bio})")
+        except Exception as e:
+            st.markdown(f"❌ Information unavailable ({e})")
+
+# --- Footer ---
+st.markdown("<br><center>Built with ❤️ using Streamlit, Biopython, and PyVis</center>", unsafe_allow_html=True)
